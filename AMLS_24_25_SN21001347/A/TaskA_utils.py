@@ -58,3 +58,8 @@ def set_seed(seed):
     torch.cuda.manual_seed(seed)  # For CUDA
     torch.backends.cudnn.deterministic = True  # Ensure deterministic behavior
     torch.backends.cudnn.benchmark = False  # Disable benchmarking for reproducibility
+
+train_data = BreastMNISTDataset('train')
+
+unique, counts = np.unique(train_data.labels, return_counts=True)
+print(unique, counts)
