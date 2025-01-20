@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from TaskA_utils import BreastMNISTDataset, calculate_mean_std, set_seed  # Import the custom dataset class (dataType, data_path, transform)
 from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
@@ -36,8 +36,14 @@ def Load_Data():
     val_data = BreastMNISTDataset('val', transform=transform_testvalData)
     test_data = BreastMNISTDataset('test', transform=transform_testvalData)
 
+    # Caclulate class weights for imbalanced dataset
+    class_counts = [147, 399]  # Number of samples in each class in train data obtained from TaskA_utils.py
+    class_weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
+    sample_weights = [class_weights[int(label.item())] for label in train_data.labels]
+    sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
+
     # Create DataLoaders
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=32, sampler=sampler)
     val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
     test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
 
@@ -48,28 +54,31 @@ def Load_Data():
     return train_loader, val_loader, test_loader
 
 ## Implementing the CNN model
-def Implement_CNN(device='cpu'):
+def Implement_CNN():
     # Define the CNN Model
     class BreastCancerCNN(nn.Module):
         def __init__(self):
             super(BreastCancerCNN, self).__init__()
             self.conv_layers = nn.Sequential(
-                nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(1, 32, kernel_size=5, stride=1, padding=1),
                 nn.BatchNorm2d(32),
                 nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2),
-                nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(64),
+                nn.Dropout(0.3),
+                nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=1),
                 nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2)        
+                nn.MaxPool2d(kernel_size=2, stride=2),     
+                nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=1),
+                nn.BatchNorm2d(128),
+                nn.ReLU()                    
             )
             self.fc_layers = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(64 * 7 * 7, 128),
-                nn.ReLU(),
+                nn.Linear(128 * 10 * 10, 256),
+                nn.ReLU(),                
                 nn.Dropout(0.5),
-                nn.Linear(128, 1),
-                nn.Sigmoid()
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128,1)
             )
         
         def forward(self, x):
@@ -82,7 +91,7 @@ def Implement_CNN(device='cpu'):
     return model
 
 # Training the model
-def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs=10, device='cpu'):
+def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs=10):
     #Create arrays to store losses and learning rates
     train_losses, val_losses, lrs = [], [] ,[]
     for epoch in range(epochs):
@@ -126,7 +135,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     return train_losses, val_losses, lrs
 
 # Testing the model
-def test_model(model, test_loader):
+def Test_Model(model, test_loader):
     all_preds = []
     all_labels = []
 
@@ -137,7 +146,7 @@ def test_model(model, test_loader):
             images, labels = images.to(device), labels.to(device)
             labels = labels.view(-1, 1)
             outputs = model(images)
-            predicted = (outputs > 0.5).float()
+            predicted = (torch.sigmoid(outputs) > 0.5).float()
 
             #Append predictions and labels to list
             all_preds.extend(predicted.cpu().numpy())
@@ -161,18 +170,20 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_loader, val_loader, test_loader = Load_Data()
 
 #Initialise the model
-model = Implement_CNN(device=device)
+model = Implement_CNN()
 
 # Loss, optimiser and scheduler
-criterion = nn.BCELoss()  # Binary Cross-Entropy Loss
-optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-4)
-scheduler = StepLR(optimizer, step_size=5, gamma=0.5) #Scheduler to adjust learning rate
+initial_lr = 0.00095 # Initial learning rate
+class_imbalance_ratio = 19/7
+criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([class_imbalance_ratio]).to(device))  # Binary Cross-Entropy Loss with Sigmoid activation
+optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
+scheduler = StepLR(optimizer, step_size=5, gamma=0.85) #Scheduler to adjust learning rate
 
 # Train and validate the model
-train_losses, val_losses, lrs = train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs=100, device=device)
+train_losses, val_losses, lrs = Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs=30)
 
 #Test model using test data
-all_preds, all_labels = test_model(model, test_loader)
+all_preds, all_labels = Test_Model(model, test_loader)
 
 # Plot training and validation loss
 plt.figure(1)
@@ -181,6 +192,7 @@ plt.plot(val_losses, label="Validation Loss")
 plt.xlabel("Epoch")
 plt.ylabel("Losses")
 plt.legend()
+plt.title("Training and Validation Loss")
 
 plt.figure(2)
 plt.plot(lrs)
@@ -190,6 +202,6 @@ plt.title("Step Decay Learning Rate")
 
 cm = confusion_matrix(all_labels, all_preds, normalize='true')
 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Benign', 'Malignant'])
-disp.plot(cmap=plt.cm.Blues)  # Set normalize='true'
+disp.plot(cmap=plt.cm.Blues)
 plt.title("Normalized Confusion Matrix")
 plt.show()
