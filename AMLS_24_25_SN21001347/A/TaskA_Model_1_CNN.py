@@ -166,13 +166,14 @@ def Test_Model(model, test_loader):
 # Check for GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load the data
+# Step 1: Load and pre process the data
 train_loader, val_loader, test_loader = Load_Data()
 
-#Initialise the model
+# Step 2: Initialise the model
 model = Implement_CNN()
 
-# Loss, optimiser and scheduler
+# Step 3: Train the model
+# Defining loss, optimiser and scheduler
 initial_lr = 0.00095 # Initial learning rate
 class_imbalance_ratio = 19/7
 criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([class_imbalance_ratio]).to(device))  # Binary Cross-Entropy Loss with Sigmoid activation
@@ -182,7 +183,7 @@ scheduler = StepLR(optimizer, step_size=5, gamma=0.85) #Scheduler to adjust lear
 # Train and validate the model
 train_losses, val_losses, lrs = Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, epochs=30)
 
-#Test model using test data
+# Step 4: Test and evaluate the model
 all_preds, all_labels = Test_Model(model, test_loader)
 
 # Plot training and validation loss
