@@ -2,6 +2,7 @@ from sklearn.svm import SVC
 from sklearn.metrics import classification_report,accuracy_score
 from TaskA_utils import BreastMNISTDataset
 from sklearn.preprocessing import MinMaxScaler
+from imblearn.over_sampling import SMOTE
 
 #Step 1: Load and preprocess data
 train_data = BreastMNISTDataset('train')
@@ -17,8 +18,11 @@ scaler = MinMaxScaler() #Scale data using MinMaxScaler
 x_train = scaler.fit_transform(x_train)
 x_test = scaler.transform(x_test)
 
+smote = SMOTE(random_state=42)
+x_train_resampled, y_train_resampled = smote.fit_resample(x_train, y_train)
+
 #Step 2: Train SVM
-svc = SVC(gamma='scale', C=1, kernel='linear', class_weight={0: 1, 1: 399/147})
+svc = SVC(gamma='scale', C=1, kernel='poly', degree=1,class_weight='balanced')
 svc.fit(x_train, y_train)
 
 #Step 3: Evaluate the model
