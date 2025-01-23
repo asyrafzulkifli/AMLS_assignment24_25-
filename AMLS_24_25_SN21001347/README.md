@@ -1,6 +1,6 @@
 # AMLS_assignment24_25-
 
-File structure
+## File structure
 ```
 AMLS_24_25_SN21001347/
 ├── A/
@@ -24,3 +24,5 @@ AMLS_24_25_SN21001347/
 ├── Datasets/
 ├── README.md
 └── main.py
+```
+## Packages used
