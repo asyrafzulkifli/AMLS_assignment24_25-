@@ -11,14 +11,14 @@ import csv
 # Get the absolute path of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Load .npz file obtained from website
+# Data path for BreastMNIST dataset from Datasets folder
 data_path = os.path.join(script_dir, "../Datasets/breastmnist.npz")
 
 # Custom Dataset class for BreastMNIST
 class BreastMNISTDataset(Dataset):
     def __init__(self, type, data_path=data_path, transform=None):
         # Load .npz file
-        data = np.load(data_path)
+        data = np.load(data_path) # Load .npz file
         self.images = data[type + '_images']  # Images (Shape: (N, H, W))
         self.labels = data[type + '_labels'].ravel()  # Labels (0 or 1)
         self.transform = transform
@@ -77,6 +77,7 @@ def Load_Data():
 
     return train_loader, val_loader, test_loader
 
+# Set seed for reproducibility
 def set_seed(seed):
     random.seed(seed)  # Python's built-in random generator
     np.random.seed(seed)  # NumPy random generator
@@ -85,6 +86,7 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True  # Ensure deterministic behavior
     torch.backends.cudnn.benchmark = False  # Disable benchmarking for reproducibility
 
+# Function to save the results to a CSV file
 def save_csv(filename,data,header=None):
     file_path = os.path.join(script_dir, f"./Results/{filename}.csv")
     with open(file_path, mode='w',newline='') as file:
@@ -93,17 +95,20 @@ def save_csv(filename,data,header=None):
         for i in range(len(data)):
             writer.writerow(data[i])
 
+# Function to save model
 def Save_Model(model, name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
     torch.save(model, model_path)
     print(f"Model saved to {model_path}")
 
+# Function to load model
 def Load_Model(name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
     model = torch.load(model_path,weights_only=False)
     print(f"Model loaded from {name}.pth")
     return model
 
+# Function to extract features from a CNN model
 def extractFeaturesFromCNN():
     # Removing the final classification layer from the CNN model
     class FeatureExtractor(nn.Module):
@@ -137,6 +142,7 @@ def extractFeaturesFromCNN():
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+    # Load pre-trained model
     model = Load_Model('Feature_Extractor')
     feature_extractor = FeatureExtractor(model).to(device)
     feature_extractor.eval()  # Set to evaluation mode

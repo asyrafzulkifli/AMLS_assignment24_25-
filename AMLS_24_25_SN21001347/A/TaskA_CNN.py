@@ -125,8 +125,8 @@ class TaskA_ResNet18(nn.Module):
 
 class EarlyStopping:
     def __init__(self, patience=10, verbose=False):
-        self.patience = patience
-        self.verbose = verbose
+        self.patience = patience # Number of epochs with no improvement after which training will be stopped
+        self.verbose = verbose # Print the counter
         self.counter = 0
         self.best_loss = None
         self.early_stop = False
@@ -145,14 +145,14 @@ class EarlyStopping:
                 self.early_stop = True
 
     def restore_best_model(self, model):
-        model.load_state_dict(self.best_model)
+        model.load_state_dict(self.best_model) # Load the best model
 
 # Training the model
 def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, epochs=10):
     #Create arrays to store losses and learning rates
     train_losses, val_losses, lrs, val_accuracy = [], [] ,[], []
     for epoch in range(epochs):
-        model.train()
+        model.train() # Set the model to training mode
         lrs.append(optimizer.param_groups[0]['lr'])
         running_loss = 0.0
         torch.cuda.synchronize()
@@ -164,16 +164,16 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
             outputs = model(images)
             loss = criterion(outputs, labels)
             
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad() # Zero the gradients
+            loss.backward() # Backpropagation
+            optimizer.step() # Update the weights
 
             running_loss += loss.item()
 
         train_loss = running_loss / len(train_loader)
         train_losses.append(train_loss)
 
-        model.eval()
+        model.eval() # Set the model to evaluation mode
         val_loss = 0.0
         correct, total = 0, 0
         torch.cuda.synchronize()
@@ -190,26 +190,29 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        val_accuracy.append(100 * correct / total)
+        val_accuracy.append(100 * correct / total) # Calculate and store validation accuracy
         val_loss /= len(val_loader)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
 
         torch.cuda.synchronize()
+        # Print epoch statistics
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Accuracy: {100 * correct / total:.2f}%")
 
+        # Check for early stopping
         early_stopping(val_loss, model)
         if early_stopping.early_stop:
             print("Early stopping")
             break
 
-    early_stopping.restore_best_model(model)
+    early_stopping.restore_best_model(model) # Restore the best model in case of early stopping
 
+    # Save the training statistics to CSV
     save_csv('Losses', [train_losses, val_losses], ['Train Loss', 'Validation Loss'])
     save_csv('Learning_Rates', [lrs], ['Learning Rate'])
     save_csv('Validation Accuracy', [val_accuracy], ['Validation Accuracy'])
 
-    # Plot training and validation loss
+    # Plot training statistics
     plt.figure(1)
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -242,7 +245,7 @@ def Test_Model(model, test_loader):
             images, labels = images.to(device), labels.to(device)
             labels = labels.view(-1, 1)
             outputs = model(images)
-            predicted = (torch.sigmoid(outputs) > 0.5).float()
+            predicted = (torch.sigmoid(outputs) > 0.5).float() # Apply sigmoid & convert to binary
 
             #Append predictions and labels to list
             all_preds.extend(predicted.cpu().numpy())
@@ -251,16 +254,18 @@ def Test_Model(model, test_loader):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     
-    f1 = f1_score(all_labels, all_preds)
-    print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}")
+    f1 = f1_score(all_labels, all_preds) # Calculate F1 score
+    print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}") # Print accuracy and F1 score
 
-    print(classification_report(all_labels, all_preds, target_names=['Benign', 'Malignant']))
+    print(classification_report(all_labels, all_preds, target_names=['Benign', 'Malignant'])) # Print classification report
 
+    # Plot the confusion matrix
     cm = confusion_matrix(all_labels, all_preds, normalize='true')
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Benign', 'Malignant'])
     disp.plot(cmap=plt.cm.Blues)
     plt.title("Normalized Confusion Matrix")
 
+    # Save the confusion matrix to CSV
     save_csv('Confusion_Matrix', [all_labels, all_preds], ['True Labels', 'Predicted Labels'])
 
 if __name__ == "__main__":
