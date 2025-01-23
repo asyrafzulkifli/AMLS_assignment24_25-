@@ -208,9 +208,9 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
     early_stopping.restore_best_model(model) # Restore the best model in case of early stopping
 
     # Save the training statistics to CSV
-    save_csv('Losses', [train_losses, val_losses], ['Train Loss', 'Validation Loss'])
-    save_csv('Learning_Rates', [lrs], ['Learning Rate'])
-    save_csv('Validation Accuracy', [val_accuracy], ['Validation Accuracy'])
+    #save_csv('Losses', [train_losses, val_losses], ['Train Loss', 'Validation Loss'])
+    #save_csv('Learning_Rates', [lrs], ['Learning Rate'])
+    #save_csv('Validation Accuracy', [val_accuracy], ['Validation Accuracy'])
 
     # Plot training statistics
     plt.figure(1)
@@ -225,7 +225,7 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
     plt.plot(lrs)
     plt.xlabel("Epoch")
     plt.ylabel("Learning Rate")
-    plt.title("Step Decay Learning Rate")
+    plt.title("Learning Rate")
 
     plt.figure(3)
     plt.plot(val_accuracy)
@@ -257,16 +257,17 @@ def Test_Model(model, test_loader):
     f1 = f1_score(all_labels, all_preds) # Calculate F1 score
     print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}") # Print accuracy and F1 score
 
-    print(classification_report(all_labels, all_preds, target_names=['Benign', 'Malignant'])) # Print classification report
+    class_name = ['Malignant', 'Benign/Normal']
+    print(classification_report(all_labels, all_preds, target_names=class_name, digits = 4)) # Print classification report
 
     # Plot the confusion matrix
     cm = confusion_matrix(all_labels, all_preds, normalize='true')
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Benign', 'Malignant'])
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_name)
     disp.plot(cmap=plt.cm.Blues)
     plt.title("Normalized Confusion Matrix")
 
     # Save the confusion matrix to CSV
-    save_csv('Confusion_Matrix', [all_labels, all_preds], ['True Labels', 'Predicted Labels'])
+    #save_csv('Confusion_Matrix', [all_labels, all_preds], ['True Labels', 'Predicted Labels'])
 
 if __name__ == "__main__":
     # Check for GPU
@@ -289,17 +290,16 @@ if __name__ == "__main__":
     # Step 3: Train the model
     # Defining loss, optimiser and scheduler
     initial_lr = 0.005 # Initial learning rate
-    class_imbalance_ratio = 19/7
     criterion = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss with Sigmoid activation
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=3)
 
-    early_stopping = EarlyStopping(patience=100, verbose=True)
+    early_stopping = EarlyStopping(patience=10, verbose=True)
     # Train and validate the model
     Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, epochs=100)
 
     # Step 4: Save the trained model
-    Save_Model(model, "TaskB_CNN_5")
+    Save_Model(model, "TaskA_CNN")
 
     # Step 4: Test and evaluate the model
     Test_Model(model, test_loader)

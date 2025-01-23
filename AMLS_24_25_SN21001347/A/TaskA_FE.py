@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import transforms
-from TaskA_utils import BreastMNISTDataset, set_seed, Save_Model  # Import the custom dataset class (dataType, data_path, transform)
+from torchvision.models import resnet18, ResNet18_Weights
+from TaskA_utils import BreastMNISTDataset, set_seed, save_csv, Save_Model  # Import the custom dataset class (dataType, data_path, transform)
 from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -12,6 +13,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 def Load_Data():
     # Set seed for reproducibility
     set_seed(42)
+
     
     transform = {
         # Define transformations for train data (includes data augmentation)
@@ -44,9 +46,9 @@ def Load_Data():
     sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
 
     # Create DataLoaders
-    train_loader = DataLoader(train_data, batch_size=32, sampler=sampler, pin_memory=True)
-    val_loader = DataLoader(val_data, batch_size=32, shuffle=False, pin_memory=True)
-    test_loader = DataLoader(test_data, batch_size=32, shuffle=False, pin_memory=True)
+    train_loader = DataLoader(train_data, batch_size=8, sampler=sampler, pin_memory=True)
+    val_loader = DataLoader(val_data, batch_size=8, shuffle=False, pin_memory=True)
+    test_loader = DataLoader(test_data, batch_size=8, shuffle=False, pin_memory=True)
 
     return train_loader, val_loader, test_loader
 
@@ -88,8 +90,8 @@ class TaskA_FE(nn.Module):
 
 class EarlyStopping:
     def __init__(self, patience=10, verbose=False):
-        self.patience = patience
-        self.verbose = verbose
+        self.patience = patience # Number of epochs with no improvement after which training will be stopped
+        self.verbose = verbose # Print the counter
         self.counter = 0
         self.best_loss = None
         self.early_stop = False
@@ -108,14 +110,14 @@ class EarlyStopping:
                 self.early_stop = True
 
     def restore_best_model(self, model):
-        model.load_state_dict(self.best_model)
+        model.load_state_dict(self.best_model) # Load the best model
 
 # Training the model
 def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, epochs=10):
     #Create arrays to store losses and learning rates
-    train_losses, val_losses, lrs = [], [] ,[]
+    train_losses, val_losses, lrs, val_accuracy = [], [] ,[], []
     for epoch in range(epochs):
-        model.train()
+        model.train() # Set the model to training mode
         lrs.append(optimizer.param_groups[0]['lr'])
         running_loss = 0.0
         torch.cuda.synchronize()
@@ -127,16 +129,16 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
             outputs = model(images)
             loss = criterion(outputs, labels)
             
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            optimizer.zero_grad() # Zero the gradients
+            loss.backward() # Backpropagation
+            optimizer.step() # Update the weights
 
             running_loss += loss.item()
 
         train_loss = running_loss / len(train_loader)
         train_losses.append(train_loss)
 
-        model.eval()
+        model.eval() # Set the model to evaluation mode
         val_loss = 0.0
         correct, total = 0, 0
         torch.cuda.synchronize()
@@ -153,21 +155,24 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
+        val_accuracy.append(100 * correct / total) # Calculate and store validation accuracy
         val_loss /= len(val_loader)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
 
         torch.cuda.synchronize()
+        # Print epoch statistics
         print(f"Epoch {epoch+1}/{epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Accuracy: {100 * correct / total:.2f}%")
 
+        # Check for early stopping
         early_stopping(val_loss, model)
         if early_stopping.early_stop:
             print("Early stopping")
             break
 
-    early_stopping.restore_best_model(model)
+    early_stopping.restore_best_model(model) # Restore the best model in case of early stopping
 
-    # Plot training and validation loss
+    # Plot training statistics
     plt.figure(1)
     plt.plot(train_losses, label="Train Loss")
     plt.plot(val_losses, label="Validation Loss")
@@ -182,6 +187,12 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
     plt.ylabel("Learning Rate")
     plt.title("Step Decay Learning Rate")
 
+    plt.figure(3)
+    plt.plot(val_accuracy)
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("Validation Accuracy")
+
 # Testing the model
 def Test_Model(model, test_loader):
     all_preds = []
@@ -194,7 +205,7 @@ def Test_Model(model, test_loader):
             images, labels = images.to(device), labels.to(device)
             labels = labels.view(-1, 1)
             outputs = model(images)
-            predicted = (torch.sigmoid(outputs) > 0.5).float()
+            predicted = (torch.sigmoid(outputs) > 0.5).float() # Apply sigmoid & convert to binary
 
             #Append predictions and labels to list
             all_preds.extend(predicted.cpu().numpy())
@@ -203,13 +214,15 @@ def Test_Model(model, test_loader):
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     
-    f1 = f1_score(all_labels, all_preds)
-    print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}")
+    f1 = f1_score(all_labels, all_preds) # Calculate F1 score
+    print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}") # Print accuracy and F1 score
 
-    print(classification_report(all_labels, all_preds, target_names=['Benign', 'Malignant']))
+    class_name = ['Malignant', 'Benign/Normal']
+    print(classification_report(all_labels, all_preds, target_names=class_name)) # Print classification report
 
+    # Plot the confusion matrix
     cm = confusion_matrix(all_labels, all_preds, normalize='true')
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Benign', 'Malignant'])
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_name)
     disp.plot(cmap=plt.cm.Blues)
     plt.title("Normalized Confusion Matrix")
 
@@ -230,11 +243,10 @@ if __name__ == "__main__":
 
     # Step 3: Train the model
     # Defining loss, optimiser and scheduler
-    initial_lr = 0.001 # Initial learning rate
-    class_imbalance_ratio = 19/7
-    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([class_imbalance_ratio]).to(device))  # Binary Cross-Entropy Loss with Sigmoid activation
+    initial_lr = 0.005 # Initial learning rate
+    criterion = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss with Sigmoid activation
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=4)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=3)
 
     early_stopping = EarlyStopping(patience=10, verbose=True)
     # Train and validate the model

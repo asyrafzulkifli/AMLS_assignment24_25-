@@ -7,6 +7,9 @@ from torchvision import transforms
 import random
 import time
 import csv
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, f1_score
+from medmnist import INFO
+import matplotlib.pyplot as plt
 
 # Get the absolute path of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +39,7 @@ class BreastMNISTDataset(Dataset):
 
         return image, label
     
-def Load_Data():
+def Load_Data(): # Function to load data in tensor format and return them in DataLoader
     # Set seed for reproducibility
     set_seed(42)
     
@@ -77,6 +80,23 @@ def Load_Data():
 
     return train_loader, val_loader, test_loader
 
+def Load_Data_np(): # Function to load data in numpy format
+    # Load BloodMNIST data
+    train_data = BreastMNISTDataset('train')
+    val_data = BreastMNISTDataset('val')
+    test_data = BreastMNISTDataset('test')
+
+    x_train, y_train = train_data.images, train_data.labels.ravel()
+    x_val, y_val = val_data.images, val_data.labels.ravel()
+    x_test, y_test = test_data.images, test_data.labels.ravel()
+
+    # Reshape and normalize the data
+    x_train = x_train.reshape(len(x_train), -1) / 255.0 # (N, 28, 28) -> (N, 784)
+    x_val = x_val.reshape(len(x_val), -1) / 255.0 # (N, 28, 28) -> (N, 784)
+    x_test = x_test.reshape(len(x_test), -1) / 255.0 # (N, 28, 28) -> (N, 784)
+
+    return x_train, x_val, x_test, y_train, y_val, y_test
+
 # Set seed for reproducibility
 def set_seed(seed):
     random.seed(seed)  # Python's built-in random generator
@@ -95,13 +115,13 @@ def save_csv(filename,data,header=None):
         for i in range(len(data)):
             writer.writerow(data[i])
 
-# Function to save model
+# Function to save a trained model
 def Save_Model(model, name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
     torch.save(model, model_path)
     print(f"Model saved to {model_path}")
 
-# Function to load model
+# Function to load a pre-trained model
 def Load_Model(name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
     model = torch.load(model_path,weights_only=False)
@@ -147,12 +167,33 @@ def extractFeaturesFromCNN():
     feature_extractor = FeatureExtractor(model).to(device)
     feature_extractor.eval()  # Set to evaluation mode
 
-    train_loader,_,test_loader = Load_Data()
+    train_loader,val_loader,test_loader = Load_Data()
 
     train_features, train_labels = Features_Labels(train_loader, device)
+    val_features, val_labels = Features_Labels(val_loader, device)
     test_features, test_labels = Features_Labels(test_loader, device)
     print("Feature extracted")
-    return train_features, test_features, train_labels, test_labels
+    return train_features, val_features, test_features, train_labels, val_labels, test_labels
+
+def Train_Eval_Model(model, x_train, x_val, x_test, y_train, y_val, y_test):
+    # Train the SVM Classifier
+    model.fit(x_train, y_train)
+
+    # Evaluate the model on the test set
+    y_val_pred = model.predict(x_val)
+    print(f"Validation Accuracy: {100*accuracy_score(y_val, y_val_pred):.2f}%, Precision: {precision_score(y_val, y_val_pred, average='weighted'):.4f}")
+
+    y_pred = model.predict(x_test)
+
+    class_name = ['Malignant', 'Benign/Normal']
+    print(f"Accuracy: {100*accuracy_score(y_test, y_pred):.2f}%")
+    print("Classification Report:")
+    print(classification_report(y_test, y_pred, target_names=class_name, digits=4))
+
+    cm = confusion_matrix(y_test, y_pred, normalize='true')
+    disp = ConfusionMatrixDisplay(cm, display_labels=class_name)
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title("Normalized Confusion Matrix")
 
 if __name__ == "__main__":
     train_data = BreastMNISTDataset('train')
@@ -161,10 +202,6 @@ if __name__ == "__main__":
     unique, counts = np.unique(train_data.labels, return_counts=True)
     print(unique, counts)
  
-
-    for workers in range(0, os.cpu_count() + 1, 2):
-        start_time = time.time()
-        dataloader = DataLoader(dataset, batch_size=32, num_workers=workers, pin_memory=True)
-        for batch in dataloader:
-            pass  # Simulate batch processing
-        print(f"num_workers={workers}, Time taken={time.time() - start_time:.2f}s")
+    # Retrieve dataset information
+    info = INFO['breastmnist']
+    print(info['label'])  # Outputs the label mappings
