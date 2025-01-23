@@ -1,6 +1,7 @@
 # AMLS_assignment24_25-
 
 File structure
+```
 AMLS_24_25_SN21001347/
 ├── A/
 │   ├── Results/
