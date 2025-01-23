@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import random
 from torchvision import transforms
+from medmnist import INFO
 
 # Get the absolute path of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -144,3 +145,7 @@ if __name__ == "__main__":
     print("Validation labels shape:", data['val_labels'].shape)
     print("Test images shape:", data['test_images'].shape)
     print("Test labels shape:", data['test_labels'].shape)
+
+        # Retrieve dataset information
+    info = INFO['bloodmnist']
+    print(info['label'])  # Outputs the label mappings
