@@ -1,0 +1,57 @@
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, ConfusionMatrixDisplay, confusion_matrix
+from sklearn.preprocessing import RobustScaler
+from TaskB_utils import BloodMNISTDataset, extractFeaturesFromCNN
+import matplotlib.pyplot as plt
+from TaskB_FE import FE_CNN
+
+def Load_Data():
+    # Load BloodMNIST data
+    train_data = BloodMNISTDataset('train')
+    val_data = BloodMNISTDataset('val')
+    test_data = BloodMNISTDataset('test')
+
+    x_train, y_train = train_data.images, train_data.labels.ravel()
+    x_val, y_val = val_data.images, val_data.labels.ravel()
+    x_test, y_test = test_data.images, test_data.labels.ravel()
+
+    # Combine train and validation sets
+    x_train = np.concatenate([x_train, x_val], axis=0)
+    y_train = np.concatenate([y_train, y_val], axis=0)
+
+    # Reshape and normalize the data
+    x_train = x_train.reshape(len(x_train), -1) / 255.0
+    x_test = x_test.reshape(len(x_test), -1) / 255.0
+
+    # Scale data using RobustScaler
+    scaler = RobustScaler()
+    x_train = scaler.fit_transform(x_train)
+    x_test = scaler.transform(x_test)
+
+    return x_train, x_test, y_train, y_test
+
+def Train_Eval_RF(x_train, x_test, y_train, y_test):
+    # Train the Random Forest Classifier
+    rf = RandomForestClassifier(
+        random_state=42,
+        n_estimators=200,
+        max_depth=20,
+        class_weight="balanced"
+    )
+    rf.fit(x_train, y_train)
+
+    # Evaluate the model on the test set
+    y_pred = rf.predict(x_test)
+
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print("Classification Report:")
+    print(classification_report(y_test, y_pred))
+
+    cm = confusion_matrix(y_test, y_pred)
+    ConfusionMatrixDisplay(cm).plot()
+
+if __name__ == "__main__":
+    x_train, x_test, y_train, y_test = extractFeaturesFromCNN()
+    Train_Eval_RF(x_train, x_test, y_train, y_test)
+    plt.show()
