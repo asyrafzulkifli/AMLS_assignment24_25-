@@ -32,12 +32,16 @@ The project consists of Tasks A and B. Some core files/folders include
   - TaskA_KNN.py: Contains code to train and test the KNN model
   - TaskA_RF.py: Contains code to train and test the RF model
   - TaskA_SWM.py: Contains code to train and test the SVM model
+  - TaskA_utils.py: Contains modules/function that are reused in the model files
+  - main.py and __init__.py: Used to run code from the dispatcher
   - Saved_Models/: Contains saved CNN models
 - Task B
   - TaskB_CNN.py: Contains code to train and test the CNN model
   - TaskB_KNN.py: Contains code to train and test the KNN model
   - TaskB_RF.py: Contains code to train and test the RF model
   - TaskB_SWM.py: Contains code to train and test the SVM model
+  - TaskB_utils.py: Contains modules/function that are reused in the model files
+  - main.py and __init__.py: Used to run code from the dispatcher
   - Saved_Models/: Contains saved CNN models
 - main.py: Main file to run all of the models used
 
