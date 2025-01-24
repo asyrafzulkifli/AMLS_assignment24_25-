@@ -86,23 +86,23 @@ def Load_Data(resnet=False):
 class TaskA_CNN(nn.Module):
     def __init__(self):
         super(TaskA_CNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+        self.conv_layers = nn.Sequential( # Define the convolutional layers
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1), # Convolutional layer 1
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Conv2d(32, 64, kernel_size=4, stride=1, padding=1),
+            nn.Conv2d(32, 64, kernel_size=4, stride=1, padding=1), # Convolutional layer 2
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),     
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.MaxPool2d(kernel_size=2, stride=2), # Max pooling layer
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1), # Convolutional layer 3
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Conv2d(128, 128, kernel_size=4, stride=1, padding=1),
+            nn.Conv2d(128, 128, kernel_size=4, stride=1, padding=1), # Convolutional layer 4
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
-        self.fc_layers = nn.Sequential(
+        self.fc_layers = nn.Sequential( # Define the fully connected layers
             nn.Flatten(),
             nn.Linear(128*6*6, 256),
             nn.BatchNorm1d(256),
@@ -143,9 +143,9 @@ class EarlyStopping:
         self.best_model = None
 
     def __call__(self, val_loss, model):
-        if self.best_loss is None or val_loss < self.best_loss:
-            self.best_loss = val_loss
-            self.best_model = model.state_dict()
+        if self.best_loss is None or val_loss < self.best_loss: # If the validation loss has decreased
+            self.best_loss = val_loss # Update the best loss
+            self.best_model = model.state_dict() # Save the best model
             self.counter = 0
         else:
             self.counter += 1
