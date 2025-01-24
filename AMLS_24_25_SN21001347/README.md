@@ -42,7 +42,7 @@ The project consists of Tasks A and B. Some core files/folders include
 - main.py: Main file to run all of the models used
 
 ## Packages used
-numpy matplotlib torch torchvision torchaudio scikit-learn medmnist scipy pandas imbalanced-learn
+pip install numpy matplotlib torch torchvision torchaudio scikit-learn medmnist scipy pandas imbalanced-learn
 
 ## Instructions
 - Download breastmnist.npz and bloodmnist.npz and place them into the Datasets/ folder
