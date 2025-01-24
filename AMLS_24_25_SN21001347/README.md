@@ -27,3 +27,6 @@ AMLS_24_25_SN21001347/
 ```
 ## Packages used
 numpy matplotlib torch torchvision torchaudio scikit-learn medmnist scipy pandas imbalanced-learn
+
+## Instructions
+- Install the packages above and run the code through main.py
