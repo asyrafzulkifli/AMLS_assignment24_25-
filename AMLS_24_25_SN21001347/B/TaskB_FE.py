@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from TaskB_utils import BloodMNISTDataset, Save_Model, set_seed
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
@@ -32,14 +32,20 @@ def Load_Data():
     val_data = BloodMNISTDataset('val', transform=transform_testvalData)
     test_data = BloodMNISTDataset('test', transform=transform_testvalData)
 
+    # Caclulate class weights for imbalanced dataset
+    class_counts = [852, 2181, 1085, 2026,  849,  993, 2330, 1643]  # Number of samples in each class in train data obtained from TaskA_utils.py
+    class_weights = 1.0 / torch.tensor(class_counts, dtype=torch.float)
+    sample_weights = [class_weights[int(label.item())] for label in train_data.labels]
+    sampler = WeightedRandomSampler(sample_weights, len(sample_weights))
+
     # Create DataLoaders
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=64, sampler=sampler)
     val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
     test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
 
     return train_loader, val_loader, test_loader
 
-## Implementing the CNN model
+## Construct the CNN model
 class FE_CNN(nn.Module):
     def __init__(self, num_classes=1):
         super(FE_CNN, self).__init__()
