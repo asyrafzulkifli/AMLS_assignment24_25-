@@ -1,13 +1,18 @@
+import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.svm import SVC
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler, MaxAbsScaler
 from sklearn.model_selection import GridSearchCV
 from skimage.feature import hog
-from TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
-from TaskA_FE import TaskA_FE
 from imblearn.over_sampling import SMOTE
-import numpy as np
-import matplotlib.pyplot as plt
-
+import os
+import sys
+try:
+    from A.TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
+except ImportError:
+    # Add the parent directory to sys.path for local imports
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
 
 def Load_Data():
     # Load BloodMNIST data
@@ -42,13 +47,13 @@ def extract_hog_features(images):
     return np.array(hog_features)
 
 def Tune_P(model, param_grid, x_train, y_train):
-    grid = GridSearchCV(model, param_grid, cv=5)
+    grid = GridSearchCV(model, param_grid, cv=5, scoring='F1')
     grid.fit(x_train, y_train)
     print("Best Parameters:", grid.best_params_)
 
     return grid.best_params_
 
-if __name__ == "__main__":
+def main(FE='CNN', CV=False):
     # Load and preprocess raw data
     x_train, x_val, x_test, y_train, y_val, y_test = Load_Data()
 
@@ -59,23 +64,43 @@ if __name__ == "__main__":
     # Extract HOG features, leave the line below commented to use raw pixel values
     x_train, x_val, x_test = extract_hog_features(x_train.reshape(-1, 28, 28)), extract_hog_features(x_val.reshape(-1, 28, 28)), extract_hog_features(x_test.reshape(-1, 28, 28)) 
 
-    # Extract features from pre-trained CNN, leave commented to use raw pixel values/HOG features
-    x_train, x_val, x_test, y_train, y_val, y_test = extractFeaturesFromCNN() 
+    if FE == 'CNN':
+        # Extract features from pre-trained CNN, leave commented to use raw pixel values/HOG features
+        x_train, x_val, x_test, y_train, y_val, y_test = extractFeaturesFromCNN()
+        
+    elif FE == 'HOG':
+        # Load and preprocess raw data
+        x_train, x_val, x_test, y_train, y_val, y_test = Load_Data()
 
-    # Grid search for hyperparameter tuning
-    param_grid = {
-        'C': [0.1, 1],
-        'gamma': [1, 0.1],
-        'kernel': ['poly'],
-        'degree': [2, 3]
-    }
-    #best_params = Tune_P(SVC(), param_grid, x_train, y_train)
+        # Resample the training data using SMOTE to handle class imbalance
+        smote = SMOTE(random_state=42)
+        x_train, y_train = smote.fit_resample(x_train, y_train)
 
-    # Initialise SVM Classifier based on best parameters
-    #svc = SVC(gamma=best_params['gamma'], C=best_params['C'], kernel=best_params['kernel'], degree=best_params['degree'], class_weight='balanced')
+        # Extract HOG features, leave the line below commented to use raw pixel values
+        x_train, x_val, x_test = extract_hog_features(x_train.reshape(-1, 28, 28)), extract_hog_features(x_val.reshape(-1, 28, 28)), extract_hog_features(x_test.reshape(-1, 28, 28))
 
+    else:
+        print("Invalid Feature Extraction method. Please input 'CNN' or 'HOG'.")
+    
+    if CV == True:
+        print("Cross Validation is enabled.")
+        # Grid search for hyperparameter tuning
+        param_grid = {
+            'C': [0.1, 1],
+            'gamma': [1, 0.1],
+            'kernel': ['poly'],
+            'degree': [2, 3]
+        }
+        best_params = Tune_P(SVC(), param_grid, x_train, y_train)
+        print("Best Parameters:", best_params)
+        # Initialise SVM Classifier based on best parameters
+        svc = SVC(gamma=best_params['gamma'], C=best_params['C'], kernel=best_params['kernel'], degree=best_params['degree'], class_weight='balanced')
+        
     svc = SVC(gamma=1, C=0.1, kernel='poly', degree=2, class_weight='balanced')
 
     # Train and evaluate the model
     Train_Eval_Model(svc, x_train, x_val, x_test, y_train, y_val, y_test)
+
+if __name__ == "__main__":
+    main()
     plt.show()

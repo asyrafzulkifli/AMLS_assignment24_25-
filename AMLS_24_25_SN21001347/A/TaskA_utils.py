@@ -1,15 +1,17 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import os
+import random
+import time
+import csv
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
-import random
-import time
-import csv
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score, f1_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay, precision_score
 from medmnist import INFO
-import matplotlib.pyplot as plt
+from scipy.ndimage import convolve
+
 
 # Get the absolute path of the current script
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -80,7 +82,7 @@ def Load_Data(): # Function to load data in tensor format and return them in Dat
 
     return train_loader, val_loader, test_loader
 
-def Load_Data_np(): # Function to load data in numpy format
+def Load_Data_np(): # Function to load data in 2D numpy format
     # Load BloodMNIST data
     train_data = BreastMNISTDataset('train')
     val_data = BreastMNISTDataset('val')
@@ -118,15 +120,44 @@ def save_csv(filename,data,header=None):
 # Function to save a trained model
 def Save_Model(model, name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
-    torch.save(model, model_path)
-    print(f"Model saved to {model_path}")
+    torch.save(model.state_dict(), model_path)
+    print(f"Model weights saved to {model_path}")
 
 # Function to load a pre-trained model
-def Load_Model(name):
+def Load_Model(model, name):
     model_path = os.path.join(script_dir, f"./Saved Models/{name}.pth")
-    model = torch.load(model_path,weights_only=False)
-    print(f"Model loaded from {name}.pth")
-    return model
+    model.load_state_dict(torch.load(model_path,weights_only=True))
+    print(f"Model weights loaded from {name}.pth")
+
+class TaskA_FE(nn.Module):
+    def __init__(self):
+        super(TaskA_FE, self).__init__()
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Conv2d(32, 64, kernel_size=4, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),     
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Conv2d(128, 128, kernel_size=4, stride=1, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128*6*6, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),                
+            nn.Dropout(0.5),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128,1)
+        )
 
 # Function to extract features from a CNN model
 def extractFeaturesFromCNN():
@@ -163,7 +194,8 @@ def extractFeaturesFromCNN():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Load pre-trained model
-    model = Load_Model('Feature_Extractor')
+    model = TaskA_FE().to(device)
+    Load_Model(model,'Feature_Extractor')
     feature_extractor = FeatureExtractor(model).to(device)
     feature_extractor.eval()  # Set to evaluation mode
 
@@ -175,6 +207,7 @@ def extractFeaturesFromCNN():
     print("Feature extracted")
     return train_features, val_features, test_features, train_labels, val_labels, test_labels
 
+# Function to train and evaluate classical model
 def Train_Eval_Model(model, x_train, x_val, x_test, y_train, y_val, y_test):
     # Train the SVM Classifier
     model.fit(x_train, y_train)
@@ -190,10 +223,25 @@ def Train_Eval_Model(model, x_train, x_val, x_test, y_train, y_val, y_test):
     print("Classification Report:")
     print(classification_report(y_test, y_pred, target_names=class_name, digits=4))
 
+    # Get model name
+    model_name = model.__class__.__name__
+    # Generate confusion matrix
     cm = confusion_matrix(y_test, y_pred, normalize='true')
-    disp = ConfusionMatrixDisplay(cm, display_labels=class_name)
+    disp = ConfusionMatrixDisplay(cm)
+
+    # Plot and save confusion matrix
+    plt.figure(figsize=(8.5 / 2.54, 8.5 / 2.54))  # Convert width to inches for matplotlib
     disp.plot(cmap=plt.cm.Blues)
-    plt.title("Normalized Confusion Matrix")
+    plt.title("Normalized Confusion Matrix", fontsize=11)
+    plt.xticks(fontsize=11)
+    plt.yticks(fontsize=11)
+
+    # Save to PDF
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.makedirs(os.path.join(script_dir, "Results"), exist_ok=True) #Create Results folder if it doesn't exist
+    plot_path = os.path.join(script_dir, "Results", f"{model_name}_confusion_matrix.pdf")
+    plt.savefig(plot_path, format="pdf", bbox_inches="tight")
+    print(f"Confusion matrix saved to {plot_path}")
 
 if __name__ == "__main__":
     train_data = BreastMNISTDataset('train')
@@ -205,3 +253,29 @@ if __name__ == "__main__":
     # Retrieve dataset information
     info = INFO['breastmnist']
     print(info['label'])  # Outputs the label mappings
+
+
+    # Sobel filters
+    sobel_x = np.array([[-1, 0, 1],
+                        [-2, 0, 2],
+                        [-1, 0, 1]])
+
+    sobel_y = np.array([[-1, -2, -1],
+                        [ 0,  0,  0],
+                        [ 1,  2,  1]])
+
+    # Prewitt filters
+    prewitt_x = np.array([[-1, 0, 1],
+                        [-1, 0, 1],
+                        [-1, 0, 1]])
+
+    prewitt_y = np.array([[-1, -1, -1],
+                        [ 0,  0,  0],
+                        [ 1,  1,  1]])
+
+    # Laplacian filter
+    laplacian = np.array([[ 0, -1,  0],
+                        [-1,  4, -1],
+                        [ 0, -1,  0]])
+
+    train_loader, val_loader, test_loader = Load_Data()

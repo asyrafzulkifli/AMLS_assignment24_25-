@@ -13,7 +13,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 def Load_Data():
     # Set seed for reproducibility
     set_seed(42)
-
     
     transform = {
         # Define transformations for train data (includes data augmentation)
@@ -52,7 +51,7 @@ def Load_Data():
 
     return train_loader, val_loader, test_loader
 
-## Implementing the CNN model
+## Implementing the CNN model (based on TaskA_CNN), 4608 features extracted from convolutional layers
 class TaskA_FE(nn.Module):
     def __init__(self):
         super(TaskA_FE, self).__init__()

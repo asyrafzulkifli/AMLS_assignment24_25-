@@ -5,15 +5,25 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from torchvision.models import resnet18, ResNet18_Weights
-from TaskA_utils import BreastMNISTDataset, set_seed, save_csv, Save_Model  # Import the custom dataset class (dataType, data_path, transform)
 from sklearn.metrics import f1_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import os
+import sys
+from matplotlib import rcParams
+try:
+    from A.TaskA_utils import BreastMNISTDataset, set_seed, save_csv, Save_Model  # Import the custom dataset class (dataType, data_path, transform) 
+except ImportError:
+    # Add the parent directory to sys.path for local imports
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from TaskA_utils import BreastMNISTDataset, set_seed, save_csv, Save_Model  # Import the custom dataset class (dataType, data_path, transform) 
+
+# Change font globally
+rcParams['font.family'] = 'Arial'
 
 ## Loading and preprocessing data
-def Load_Data():
+def Load_Data(resnet=False):
     # Set seed for reproducibility
     set_seed(42)
-
     
     transform = {
         # Define transformations for train data (includes data augmentation)
@@ -148,10 +158,11 @@ class EarlyStopping:
         model.load_state_dict(self.best_model) # Load the best model
 
 # Training the model
-def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, epochs=10):
+def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, device, saveMode, epochs=10):
     #Create arrays to store losses and learning rates
-    train_losses, val_losses, lrs, val_accuracy = [], [] ,[], []
+    train_losses, val_losses, lrs, val_accuracy, epoch_list = [], [] ,[], [], []
     for epoch in range(epochs):
+        epoch_list.append(epoch+1)
         model.train() # Set the model to training mode
         lrs.append(optimizer.param_groups[0]['lr'])
         running_loss = 0.0
@@ -212,29 +223,77 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
     #save_csv('Learning_Rates', [lrs], ['Learning Rate'])
     #save_csv('Validation Accuracy', [val_accuracy], ['Validation Accuracy'])
 
-    # Plot training statistics
-    plt.figure(1)
-    plt.plot(train_losses, label="Train Loss")
-    plt.plot(val_losses, label="Validation Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Losses")
-    plt.legend()
-    plt.title("Training and Validation Loss")
+    # Save training plots
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.makedirs(os.path.join(script_dir, "Results"), exist_ok=True) #Create Results folder if it doesn't exist
 
-    plt.figure(2)
-    plt.plot(lrs)
-    plt.xlabel("Epoch")
-    plt.ylabel("Learning Rate")
-    plt.title("Learning Rate")
+    if saveMode:
+        # Training and Validation Loss Plot
+        plt.figure(figsize=(8.5 / 2.54, 8.5 / 2.54))
+        plt.plot(epoch_list, train_losses, label="Train Loss")
+        plt.plot(epoch_list, val_losses, label="Validation Loss")
+        plt.xlabel("Epoch", fontsize=10)
+        plt.ylabel("Losses", fontsize=10)
+        plt.title("Training and Validation Loss", fontsize=10)
+        plt.legend(fontsize=8)
+        plt.grid()
+        plt.savefig(os.path.join(script_dir, "Results", "training_validation_loss.pdf"),bbox_inches="tight")
+        plt.close()
 
-    plt.figure(3)
-    plt.plot(val_accuracy)
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
-    plt.title("Validation Accuracy")
+        # Learning Rate Plot
+        plt.figure(figsize=(8.5 / 2.54, 8.5 / 2.54))
+        plt.plot(epoch_list, [x * 1000 for x in lrs])
+        plt.xlabel("Epoch", fontsize=10)
+        plt.ylabel(r"Learning Rate $\times10^{-3}$", fontsize=10)
+        plt.title("Learning Rate", fontsize=10)
+        plt.grid()
+        plt.savefig(os.path.join(script_dir, "Results", "learning_rate.pdf"),bbox_inches="tight")
+        plt.close()
+
+        # Validation Accuracy Plot
+        plt.figure(figsize=(8.5 / 2.54, 8.5 / 2.54))
+        plt.plot(epoch_list, val_accuracy)
+        plt.xlabel("Epoch", fontsize=10)
+        plt.ylabel("Accuracy", fontsize=10)
+        plt.title("Validation Accuracy", fontsize=10)
+        plt.grid()
+        plt.savefig(os.path.join(script_dir, "Results", "validation_accuracy.pdf"),bbox_inches="tight")
+        plt.close()
+
+        # Save the training statistics to CSV
+        save_csv('Losses', [train_losses, val_losses], ['Train Loss', 'Validation Loss'])
+        save_csv('Learning_Rates', [lrs], ['Learning Rate'])
+        save_csv('Validation Accuracy', [val_accuracy], ['Validation Accuracy'])
+
+    else:
+        # Training and Validation Loss Plot
+        plt.figure()
+        plt.plot(epoch_list, train_losses, label="Train Loss")
+        plt.plot(epoch_list, val_losses, label="Validation Loss")
+        plt.xlabel("Epoch", fontsize=10)
+        plt.ylabel("Losses", fontsize=10)
+        plt.title("Training and Validation Loss")
+        plt.legend()
+        plt.grid()
+
+        # Learning Rate Plot
+        plt.figure()
+        plt.plot(epoch_list, [x * 1000 for x in lrs])
+        plt.xlabel("Epoch")
+        plt.ylabel(r"Learning Rate $\times10^{-3}$")
+        plt.title("Learning Rate")
+        plt.grid()
+
+        # Validation Accuracy Plot
+        plt.figure()
+        plt.plot(epoch_list, val_accuracy)
+        plt.xlabel("Epoch")
+        plt.ylabel("Accuracy")
+        plt.title("Validation Accuracy")
+        plt.grid()
 
 # Testing the model
-def Test_Model(model, test_loader):
+def Test_Model(model, test_loader, device, saveMode = True):
     all_preds = []
     all_labels = []
 
@@ -256,20 +315,35 @@ def Test_Model(model, test_loader):
     
     f1 = f1_score(all_labels, all_preds) # Calculate F1 score
     print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}") # Print accuracy and F1 score
+    print(f"Classification Report: {classification_report(all_labels, all_preds)}") # Print classification report
 
+    # Confusion Matrix
     class_name = ['Malignant', 'Benign/Normal']
-    print(classification_report(all_labels, all_preds, target_names=class_name, digits = 4)) # Print classification report
-
-    # Plot the confusion matrix
     cm = confusion_matrix(all_labels, all_preds, normalize='true')
+    print(f"Confusion Matrix: {cm}")
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_name)
-    disp.plot(cmap=plt.cm.Blues)
-    plt.title("Normalized Confusion Matrix")
 
-    # Save the confusion matrix to CSV
-    #save_csv('Confusion_Matrix', [all_labels, all_preds], ['True Labels', 'Predicted Labels'])
+    if saveMode:
+        # Save confusion matrix plot
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        os.makedirs(os.path.join(script_dir, "Results"), exist_ok=True) #Create Results folder if it doesn't exist
 
-if __name__ == "__main__":
+        plt.figure(figsize=(8.5 / 2.54, 8.5 / 2.54))
+        disp.plot(cmap=plt.cm.Blues)
+        plt.title("Normalized Confusion Matrix", fontsize=12)
+        plt.savefig(os.path.join(script_dir,"Results", "confusion_matrix.pdf"),bbox_inches="tight")
+        plt.close()
+        # Save the confusion matrix to CSV
+        save_csv('Confusion_Matrix', [all_labels, all_preds], ['True Labels', 'Predicted Labels'])
+
+def main(saveMode = True):
+    saveMode = input("Save results (Y/N) ").strip()
+    if saveMode.lower() == 'y':
+        saveMode = True
+    elif saveMode.lower() == 'n':
+        saveMode = False
+    else:
+        main()
     # Check for GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -294,14 +368,19 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=3)
 
-    early_stopping = EarlyStopping(patience=10, verbose=True)
+    early_stopping = EarlyStopping(patience=100, verbose=True)
     # Train and validate the model
-    Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, epochs=100)
+    Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, device, saveMode, epochs=100)
 
     # Step 4: Save the trained model
-    Save_Model(model, "TaskA_CNN")
+    if saveMode:
+        Save_Model(model, "TaskA_CNN")
 
     # Step 4: Test and evaluate the model
-    Test_Model(model, test_loader)
+    Test_Model(model, test_loader, device, saveMode)
+
+
+if __name__ == "__main__":
+    main(saveMode=False)
 
     plt.show()

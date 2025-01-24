@@ -1,13 +1,19 @@
+import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import RobustScaler, MinMaxScaler, StandardScaler, MaxAbsScaler
 from skimage.feature import hog
-from TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
-from TaskA_FE import TaskA_FE
 from imblearn.over_sampling import SMOTE
-import numpy as np
-import matplotlib.pyplot as plt
+import os
+import sys
+try:
+    from A.TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
+except ImportError:
+    # Add the parent directory to sys.path for local imports
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from TaskA_utils import BreastMNISTDataset, extractFeaturesFromCNN, Train_Eval_Model
 
 def Load_Data():
     # Load BloodMNIST data
@@ -48,7 +54,7 @@ def Tune_P(model, param_grid, x_train, y_train):
 
     return grid.best_params_
 
-if __name__ == "__main__":
+def main():
     # Load and preprocess raw data
     x_train, x_val, x_test, y_train, y_val, y_test = Load_Data()
 
@@ -87,4 +93,7 @@ if __name__ == "__main__":
 
     # Train and evaluate the model
     Train_Eval_Model(rf, x_train, x_val, x_test, y_train, y_val, y_test)
+
+if __name__ == "__main__":
+    main()
     plt.show()
