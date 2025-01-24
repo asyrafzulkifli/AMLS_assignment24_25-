@@ -9,6 +9,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classifica
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 import os
 import sys
+# Adjust imports for local execution
 try:
     from B.TaskB_utils import BloodMNISTDataset, Save_Model, set_seed, save_csv
 except ImportError:
@@ -56,63 +57,32 @@ def Load_Data():
 
     return train_loader, val_loader, test_loader
 
-## Construct the CNN model
-class CNN(nn.Module):
-    def __init__(self, num_classes=8):
-        super(CNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=5, stride=1, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(32, 64, kernel_size=5, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),     
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),                    
-        )
-        self.fc_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(256*6*6, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256,num_classes)
-        )
-
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
-        return x
-    
+## Define the CNN model  
 class TaskB_CNN(nn.Module):
     def __init__(self, num_classes=8):
         super(TaskB_CNN, self).__init__()
+        # Define the convolutional layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1), # Depth: 3, Width: 28, Height: 28
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.MaxPool2d(kernel_size=2, stride=2), # Depth: 32, Width: 14, Height: 14
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1), 
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2), # Depth: 64, Width: 7, Height: 7
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.MaxPool2d(kernel_size=2, stride=2), # Depth: 64, Width: 3, Height: 3
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2) 
+            nn.MaxPool2d(kernel_size=2, stride=2) # Depth: 64, Width: 1, Height: 1
         )
+        # Define the fully connected layers
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(64, 128),
+            nn.Linear(64, 128), # 64 input features, 128 output features
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
+            nn.Dropout(0.5), # Dropout layer with 50% probability for regularisation
+            nn.Linear(128, num_classes) # 128 input features, 8 output features
         )
 
     def forward(self, x):
@@ -120,6 +90,7 @@ class TaskB_CNN(nn.Module):
         x = self.fc_layers(x)
         return x
 
+# Early stopping class
 class EarlyStopping:
     def __init__(self, patience=10, verbose=False):
         self.patience = patience # Number of epochs with no improvement after which training will be stopped
@@ -130,11 +101,11 @@ class EarlyStopping:
         self.best_model = None
 
     def __call__(self, val_loss, model):
-        if self.best_loss is None or val_loss < self.best_loss:
-            self.best_loss = val_loss
-            self.best_model = model.state_dict()
+        if self.best_loss is None or val_loss < self.best_loss: # If the validation loss < best loss
+            self.best_loss = val_loss # Update the best loss
+            self.best_model = model.state_dict() # Save the best model
             self.counter = 0
-        else:
+        else: # If the validation loss => best loss
             self.counter += 1
             if self.verbose:
                 print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
@@ -146,10 +117,10 @@ class EarlyStopping:
 
 # Training the model
 def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, device="cpu", saveMode=False, epochs=10):
-    ## Create lists to store losses and learning rates
+    ## Create lists to store losses and learning rates, validation accuracy and epochs
     train_losses, val_losses, lrs, val_accuracy, epoch_list = [], [], [], [], []
     for epoch in range(epochs):
-        epoch_list.append(epoch+1)
+        epoch_list.append(epoch+1) # Epochs start from 1
         model.train()
         lrs.append(optimizer.param_groups[0]['lr'])
         running_loss = 0.0
@@ -157,38 +128,38 @@ def Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler
         for images, labels in train_loader:
             images, labels = images.to(device), labels.to(device)
             
-            optimizer.zero_grad()
+            optimizer.zero_grad() # Zero the parameter gradients
 
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+            outputs = model(images) # Forward pass
+            loss = criterion(outputs, labels) # Compute the loss
                         
-            loss.backward()
-            optimizer.step()
+            loss.backward() # Backward pass
+            optimizer.step() # Update the weights
 
-            running_loss += loss.item()
+            running_loss += loss.item() # Add the loss to the running loss
         
-        train_loss = running_loss / len(train_loader)
-        train_losses.append(train_loss)
+        train_loss = running_loss / len(train_loader) # Calculate the average training loss
+        train_losses.append(train_loss) # Append the training loss to the list
 
         ## Validation loop
-        model.eval()
+        model.eval() # Set the model to evaluation mode
         val_loss = 0.0
         correct = 0
         total = 0
         with torch.no_grad():
             for images, labels in val_loader:
                 images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-                val_loss += loss.item()
+                outputs = model(images) # Forward pass
+                loss = criterion(outputs, labels) # Compute the loss
+                val_loss += loss.item() # Add the loss to the validation loss
 
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                _, predicted = torch.max(outputs.data, 1) # Get the predicted class
+                total += labels.size(0) # Total number of labels
+                correct += (predicted == labels).sum().item() # Number of correct predictions
 
-        val_accuracy.append(100 * correct / total)
-        val_loss/=len(val_loader)
-        val_losses.append(val_loss)
+        val_accuracy.append(100 * correct / total) # Calculate the validation accuracy
+        val_loss/=len(val_loader) # Calculate the average validation loss
+        val_losses.append(val_loss) # Append the validation loss to the list
 
         ## Update the learning rate based on the validation loss
         scheduler.step(val_loss)

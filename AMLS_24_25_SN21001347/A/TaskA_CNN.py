@@ -315,7 +315,7 @@ def Test_Model(model, test_loader, device, saveMode = True):
     
     f1 = f1_score(all_labels, all_preds) # Calculate F1 score
     print(f"Test Accuracy: {100 * correct / total:.2f}%, F1 Score: {f1:.4f}") # Print accuracy and F1 score
-    print(f"Classification Report: {classification_report(all_labels, all_preds)}") # Print classification report
+    print(f"Classification Report: {classification_report(all_labels, all_preds,digits=4)}") # Print classification report
 
     # Confusion Matrix
     class_name = ['Malignant', 'Benign/Normal']
@@ -368,7 +368,7 @@ def main(saveMode = True):
     optimizer = optim.AdamW(model.parameters(), lr=initial_lr, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.85, patience=3)
 
-    early_stopping = EarlyStopping(patience=100, verbose=True)
+    early_stopping = EarlyStopping(patience=10, verbose=True)
     # Train and validate the model
     Train_Model(model, train_loader, val_loader, criterion, optimizer, scheduler, early_stopping, device, saveMode, epochs=100)
 

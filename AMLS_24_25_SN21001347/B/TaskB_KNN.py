@@ -38,7 +38,7 @@ def main():
     #x_train, x_val, x_test, y_train, y_val, y_test = Load_Data()
 
     # Train KNN 
-    knn = KNeighborsClassifier(n_neighbors=5, weights='distance')
+    knn = KNeighborsClassifier(n_neighbors=5, weights='distance',metric='manhattan')
 
     Train_Eval_Model(knn, x_train, x_val, x_test, y_train, y_val, y_test)    
    

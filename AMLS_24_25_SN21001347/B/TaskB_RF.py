@@ -35,6 +35,7 @@ def Load_Data():
     return x_train, x_val, x_test, y_train, y_val, y_test
 
 def main():
+    #x_train, x_val, x_test, y_train, y_val, y_test = Load_Data()
     x_train, x_val, x_test, y_train, y_val, y_test = extractFeaturesFromCNN()
 
     rf = RandomForestClassifier(
