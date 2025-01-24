@@ -26,3 +26,4 @@ AMLS_24_25_SN21001347/
 └── main.py
 ```
 ## Packages used
+numpy matplotlib torch torchvision torchaudio scikit-learn medmnist scipy pandas
